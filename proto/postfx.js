@@ -76,6 +76,8 @@
     '#define PAL_N ' + PALETTE.length,
     'uniform sampler2D tDiffuse;',
     'uniform sampler2D tBloom;',
+    'uniform sampler2D tHUD;',
+    'uniform float uHUD;',
     'uniform vec3  palette[PAL_N];',
     'uniform float uTime;',
     'uniform float uPixelate;   // 0 = raw 3D, 1 = full pixel treatment',
@@ -141,6 +143,14 @@
     '  float vig = smoothstep(0.95, 0.35, edge);',
     '  c *= mix(1.0, vig, 0.55);',
 
+    /* HUD is composited last and deliberately AFTER the palette snap and scanlines:
+       readability of health and dialogue must never be degraded by the CRT treatment. */
+    /* No manual Y flip: three.js already uploads the canvas with flipY, and the
+       fullscreen quad's uv origin matches the render target's. Flipping here too
+       put the dialogue box on the ceiling. */
+    '  vec4 hud = texture2D(tHUD, uv);',
+    '  c = mix(c, hud.rgb, hud.a * uHUD);',
+
     '  gl_FragColor = vec4(c, 1.0);',
     '}'
   ].join('\n');
@@ -185,6 +195,7 @@
       vertexShader: VERT, fragmentShader: COMP,
       uniforms: {
         tDiffuse: { value: null }, tBloom: { value: null },
+        tHUD: { value: null }, uHUD: { value: 1 },
         palette: { value: paletteUniform() },
         uTime: { value: 0 },
         uPixelate: { value: 1 },
@@ -197,6 +208,7 @@
 
     FX.target = lowRT;
     FX.uniforms = compMat.uniforms;
+    FX.setHUD = function (tex) { compMat.uniforms.tHUD.value = tex; };
   };
 
   FX.resize = function (width, height) {

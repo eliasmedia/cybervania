@@ -22,6 +22,8 @@
   PL.coyote = 0; PL.jumpBuf = 0; PL.dashBuf = 0;
   PL.dashT = 0; PL.dashCd = 0; PL.dashDir = 1; PL.jumps = 0;
   PL.walk = 0; PL.squash = 0;
+  PL.atkState = 0;      // 0 idle, 1 windup, 2 active, 3 recover
+  PL.atkTimer = 0; PL.atkIndex = 0; PL.comboTimer = 0; PL.atkSwing = 0;
 
   var group, torso, head, optic, legL, legR, thruster, glowLight;
 
@@ -65,10 +67,19 @@
     legR.position.x = 0.19;
     group.add(legR);
 
-    // arm + service blade
+    // arm + service blade. The blade is what the player reads during an attack,
+    // so it is the brightest thing on the body after the optic.
+    PL.arm = new THREE.Group();
+    PL.arm.position.set(0.34, 1.12, 0.12);
     var arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.16), dark);
-    arm.position.set(0.5, 1.1, 0.1);
-    group.add(arm);
+    arm.position.x = 0.25;
+    PL.arm.add(arm);
+    PL.blade = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.1, 0.1),
+      new THREE.MeshBasicMaterial({ color: 0xa8f4ff, toneMapped: false }));
+    PL.blade.position.x = 1.0;
+    PL.blade.visible = false;
+    PL.arm.add(PL.blade);
+    group.add(PL.arm);
 
     thruster = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.4),
       new THREE.MeshBasicMaterial({ color: 0x4de3ff, transparent: true, opacity: 0, toneMapped: false }));
@@ -79,6 +90,48 @@
     PL.group = group;
     void M;
   };
+
+  /* Three-hit blade combo. Short reach, fast recovery, a small forward step on the
+     third hit — the commitment is what makes positioning matter. */
+  var COMBO = [
+    { windup: 0.05, active: 0.10, recover: 0.14, dmg: 7,  reach: 2.0, step: 0 },
+    { windup: 0.05, active: 0.10, recover: 0.14, dmg: 7,  reach: 2.0, step: 0 },
+    { windup: 0.07, active: 0.12, recover: 0.22, dmg: 11, reach: 2.4, step: 3.5 }
+  ];
+
+  function updateAttack(dt, input) {
+    PL.comboTimer = Math.max(0, PL.comboTimer - dt);
+
+    if (PL.atkState > 0) {
+      PL.atkTimer -= dt;
+      var a = COMBO[PL.atkIndex];
+      if (PL.atkState === 1 && PL.atkTimer <= 0) {
+        PL.atkState = 2; PL.atkTimer = a.active;
+        if (PL.blade) PL.blade.visible = true;
+        var bx = PL.x + PL.facing * 0.5;
+        var hits = P.Enemies ? P.Enemies.hitBox(
+          PL.facing > 0 ? bx : bx - a.reach, PL.y + 0.3,
+          a.reach, 2.4, a.dmg, PL.facing) : 0;
+        if (hits > 0) {
+          if (a.step) PL.vx += PL.facing * a.step;
+          if (P.Game) { P.Game.shake = Math.max(P.Game.shake || 0, 0.25); }
+        }
+      } else if (PL.atkState === 2 && PL.atkTimer <= 0) {
+        PL.atkState = 3; PL.atkTimer = a.recover;
+        if (PL.blade) PL.blade.visible = false;
+      } else if (PL.atkState === 3 && PL.atkTimer <= 0) {
+        PL.atkState = 0;
+        PL.comboTimer = 0.4;
+      }
+      PL.atkSwing = PL.atkState === 2 ? (1 - PL.atkTimer / a.active) : 0;
+      return;
+    }
+
+    if (!input.attackPressed) return;
+    PL.atkIndex = PL.comboTimer > 0 ? (PL.atkIndex + 1) % COMBO.length : 0;
+    PL.atkState = 1;
+    PL.atkTimer = COMBO[PL.atkIndex].windup;
+  }
 
   /* --- AABB collision against the live chunk colliders ---------------------- */
   function overlaps(x, y) {
@@ -147,6 +200,9 @@
       PL.facing = PL.dashDir;
     }
 
+    // --- attack ---
+    updateAttack(dt, input);
+
     // --- gravity ---
     if (PL.dashT <= 0) {
       var g = GRAV;
@@ -165,9 +221,11 @@
         var nx = PL.x + sdx;
         var hit = overlaps(nx, PL.y);
         if (hit) {
-          /* Step up over knee-height lips instead of catching on them. */
+          /* Step up over knee-height lips instead of catching on them. The threshold
+             is deliberately generous: getting snagged on a 1-unit ledge is the single
+             most common way a 2.5D platformer feels cheap. */
           var stepped = false;
-          for (var up = 0.1; up <= 0.65; up += 0.15) {
+          for (var up = 0.1; up <= 1.05; up += 0.15) {
             if (!overlaps(nx, PL.y + up)) { PL.y += up; PL.x = nx; stepped = true; break; }
           }
           if (!stepped) { PL.vx = 0; sdx = 0; }
@@ -211,6 +269,12 @@
       head.position.y = 1.66 + bob;
       optic.position.y = 1.68 + bob;
 
+      if (PL.arm) {
+        var swing = PL.atkState === 2 ? (-1.1 + PL.atkSwing * 2.2)
+                  : PL.atkState === 1 ? -1.2
+                  : (PL.grounded ? Math.sin(PL.walk) * 0.25 : -0.3);
+        PL.arm.rotation.z = swing;
+      }
       thruster.material.opacity = PL.dashT > 0 ? 0.9 : (PL.vy > 2 ? 0.35 : 0);
       glowLight.intensity = 1.5 + (PL.dashT > 0 ? 2.5 : 0);
     }

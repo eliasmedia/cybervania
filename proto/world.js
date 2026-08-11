@@ -387,7 +387,12 @@
     var r = rngFor(cx, cy);
 
     var record = K.beginRecord();
-    (BUILD[type] || BUILD[' '])(g, col, cx, cy, ox, oy, r);
+    /* A hand-authored chunk replaces the procedural builder entirely. That is how
+       set pieces, story beats and the whole opening get placed by hand while the
+       rest of a region stays generated. */
+    if (!(P.Authored && P.Authored.build(cx, cy, g, col, ox, oy, M, r))) {
+      (BUILD[type] || BUILD[' '])(g, col, cx, cy, ox, oy, r);
+    }
     K.endRecord();
 
     W.scene.add(g);
@@ -455,8 +460,15 @@
     for (var key in chunks) {
       if (!wanted[key]) W.disposeChunk(key);
     }
+    /* Enemies live with their chunk: anything outside the resident neighbourhood is
+       removed, and comes back when its chunk is rebuilt. */
+    if (P.Enemies) {
+      P.Enemies.dropOutside((pcx - radX) * CW, (pcx + radX + 1) * CW,
+                            W.chunkOriginY(pcy + radY), W.chunkOriginY(pcy - radY) + CH);
+    }
     W.stats = { live: Object.keys(chunks).length, colliders: W.colliders.length,
-                cx: pcx, cy: pcy, type: W.typeAt(pcx, pcy), pending: queue.length };
+                cx: pcx, cy: pcy, type: W.typeAt(pcx, pcy), pending: queue.length,
+                enemies: P.Enemies ? P.Enemies.count() : 0 };
   };
 
   /* Build queued chunks until the budget runs out. Returns how many were built. */
@@ -484,6 +496,7 @@
 
   /* A reasonable place to drop the player in: the first street chunk. */
   W.spawnPoint = function () {
+    if (P.Authored && P.Authored.spawns.start) return P.Authored.spawns.start;
     for (var cy = 0; cy < W.rows; cy++) {
       for (var cx = 0; cx < W.cols; cx++) {
         if (W.typeAt(cx, cy) === 'C') {

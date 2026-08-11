@@ -6,7 +6,7 @@
   var renderer, scene, camera, clock;
   var LOW_W = 480, LOW_H = 270;
   var input = { left: 0, right: 0, up: 0, down: 0,
-                jumpPressed: 0, jumpReleased: 0, dashPressed: 0 };
+                jumpPressed: 0, jumpReleased: 0, dashPressed: 0, attackPressed: 0 };
   var rain, rainGeo;
   var stats = { fps: 60, acc: 0, frames: 0, worst: 0, hitches: 0, hist: new Float32Array(120), hi: 0 };
   var time = 0;
@@ -56,6 +56,7 @@
     scene.add(fill);
 
     P.Tex && P.Kit && P.World.init(scene);
+    if (P.Enemies) P.Enemies.init(scene, P.World.mats);
     P.Player.build(scene, P.World.mats);
 
     var sp = P.World.spawnPoint();
@@ -63,10 +64,21 @@
     camX = sp.x; camY = sp.y;
     P.World.stream(sp.x, sp.y);
     P.World.flush();
+    /* Authored spawn points only exist once their chunk has been built, so re-place
+       the player after the first flush. */
+    if (P.Authored && P.Authored.spawns.start) {
+      sp = P.Authored.spawns.start;
+      P.Player.spawn(sp.x, sp.y);
+      camX = sp.x; camY = sp.y;
+      P.World.stream(sp.x, sp.y);
+      P.World.flush();
+    }
+    if (P.Game) P.Game.respawn = { x: sp.x, y: sp.y };
 
     buildRain();
 
     P.PostFX.init(renderer, LOW_W, LOW_H);
+    if (P.Game) { P.Game.initHUD(LOW_W, LOW_H); P.PostFX.setHUD(P.Game.hudTexture); }
     applyOpts();
 
     camera.position.set(camX, camY, 48);
@@ -160,6 +172,13 @@
       down[e.code] = 1;
       if (e.code === 'Space' || e.code === 'KeyX' || e.code === 'KeyW' || e.code === 'ArrowUp') input.jumpPressed = 1;
       if (e.code === 'ShiftLeft' || e.code === 'KeyC') input.dashPressed = 1;
+      if (e.code === 'KeyJ' || e.code === 'KeyZ') input.attackPressed = 1;
+      /* Any confirm key advances dialogue instead of acting on the world. */
+      if (P.Game && P.Game.dialogue.active &&
+          ['Space','KeyX','KeyJ','KeyZ','KeyE','Enter'].indexOf(e.code) >= 0) {
+        P.Game.advance();
+        input.jumpPressed = 0; input.attackPressed = 0;
+      }
       // toggles
       if (e.code === 'KeyP') { P.opts.pixelate = P.opts.pixelate ? 0 : 1; applyOpts(); }
       if (e.code === 'KeyO') { P.opts.palette = P.opts.palette > 0 ? 0 : 0.85; applyOpts(); }
@@ -185,6 +204,7 @@
     camera.aspect = LOW_W / LOW_H;
     camera.updateProjectionMatrix();
     P.PostFX.resize(LOW_W, LOW_H);
+    if (P.Game) P.Game.resizeHUD(LOW_W, LOW_H);
     resize();
   }
   P.cycleRes = cycleRes;
@@ -221,11 +241,17 @@
     time += dt;
 
     var kd = P.keys || {};
-    input.left = kd.ArrowLeft || kd.KeyA ? 1 : 0;
-    input.right = kd.ArrowRight || kd.KeyD ? 1 : 0;
+    var locked = P.Game && P.Game.locked();
+    input.left = (!locked && (kd.ArrowLeft || kd.KeyA)) ? 1 : 0;
+    input.right = (!locked && (kd.ArrowRight || kd.KeyD)) ? 1 : 0;
+    if (locked) { input.jumpPressed = 0; input.dashPressed = 0; input.attackPressed = 0; }
 
     P.Player.update(dt, input);
     input.jumpPressed = 0; input.jumpReleased = 0; input.dashPressed = 0;
+    input.attackPressed = 0;
+
+    if (P.Enemies) P.Enemies.update(dt);
+    if (P.Game) P.Game.update(dt);
 
     P.World.stream(P.Player.x, P.Player.y);
     /* Amortised chunk building. 3 ms is comfortably inside a 16.7 ms frame and the
@@ -241,8 +267,11 @@
     var ty = P.Player.y + 3.4;
     camX += (tx - camX) * Math.min(1, dt * 4.2);
     camY += (ty - camY) * Math.min(1, dt * 3.2);
-    camera.position.set(camX, camY, 48);
-    camera.lookAt(camX, camY, 0);
+    var sh = (P.Game && P.Game.shake) || 0;
+    var shx = sh > 0 ? (Math.random() - 0.5) * sh * 1.6 : 0;
+    var shy = sh > 0 ? (Math.random() - 0.5) * sh * 1.6 : 0;
+    camera.position.set(camX + shx, camY + shy, 48);
+    camera.lookAt(camX + shx, camY + shy, 0);
 
     // keep the shadow frustum on the player
     P.keyLight.position.set(camX - 14, camY + 26, 18);
@@ -253,6 +282,7 @@
   };
 
   P.render = function () {
+    if (P.Game) P.Game.drawHUD(time);
     P.PostFX.render(scene, camera, time);
   };
 
@@ -303,7 +333,7 @@
       'worst ' + i.worst + ' ms   hitches ' + i.hitches + '   pending ' + i.pending + '\n' +
       'chunk ' + i.chunk + '   live ' + i.chunks + '   geo ' + i.geo +
         '   tex ' + i.tex + '   anim ' + i.anim + '\n' +
-      'pos ' + i.pos + '\n' +
+      'pos ' + i.pos + '   hp ' + (P.Game ? P.Game.hp : '-') + '   enemies ' + ((P.World.stats && P.World.stats.enemies) || 0) + '\n' +
       '[P] pixelate ' + (P.opts.pixelate ? 'ON' : 'OFF') +
       '   [O] palette ' + (P.opts.palette ? 'ON' : 'OFF') +
       '   [B] bloom ' + (P.opts.bloom ? 'ON' : 'OFF') +
