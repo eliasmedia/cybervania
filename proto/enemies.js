@@ -28,6 +28,7 @@
     for (var i = E.list.length - 1; i >= 0; i--) {
       var e = E.list[i];
       if (e.x < minX || e.x > maxX || e.y < minY || e.y > maxY) {
+        if (P.Lights && e.glow && e.glow.obj) P.Lights.drop(e.glow);
         scene.remove(e.group);
         E.list.splice(i, 1);
       }
@@ -90,9 +91,8 @@
         l.position.set(-0.6 + i * 0.4, 0.3, i % 2 ? 0.35 : -0.35);
         g.add(l); e.legs.push(l);
       }
-      e.glow = new THREE.PointLight(0xffb23d, 0.8, 6, 2);
-      e.glow.position.set(0.6, 0.8, 0.8);
-      g.add(e.glow);
+      var ga = new THREE.Object3D(); ga.position.set(0.6, 0.8, 0.8); g.add(ga);
+      e.glow = P.Lights ? P.Lights.attach(ga, 0xffb23d, 0.8, 6) : { color: new THREE.Color(), intensity: 0 };
       return g;
     },
     ai: function (e, dt) {
@@ -141,9 +141,8 @@
       e.optic.scale.set(0.4, 0.4, 0.3);
       e.optic.position.set(0, 0, 0.55);
       e.head.add(e.optic);
-      e.glow = new THREE.PointLight(0xffb23d, 1.4, 9, 2);
-      e.glow.position.set(0, 0.8, 1);
-      g.add(e.glow);
+      var ea = new THREE.Object3D(); ea.position.set(0, 0.8, 1); g.add(ea);
+      e.glow = P.Lights ? P.Lights.attach(ea, 0xffb23d, 1.4, 9) : { color: new THREE.Color(), intensity: 0 };
       return g;
     },
     ai: function (e, dt) {
@@ -187,7 +186,7 @@
       facing: (opts && opts.facing) || -1,
       grounded: false, alerted: false, turn: false,
       timer: 0, t: 0, walk: 0, scan: 0, reported: false,
-      flash: 0, dead: false, deadT: 0, hurtCd: 0
+      flash: 0, dead: false, deadT: 0, hurtCd: 0, recoil: 0, recoilDir: 1
     };
     e.group = def.build(e);
     e.group.position.set(x, y, 0);
@@ -196,14 +195,23 @@
     return e;
   };
 
-  E.hurt = function (e, dmg, dir) {
+  E.hurt = function (e, dmg, dir, opts) {
     if (e.dead || e.hurtCd > 0) return false;
+    opts = opts || {};
     e.hp -= dmg;
     e.flash = 1;
     e.hurtCd = 0.12;
     e.alerted = true;
-    e.vx = dir * 6;
-    if (!e.def.fixed) e.vy = Math.max(e.vy, 3);
+    /* Knockback is what makes a hit feel like it landed. Light enemies fly, fixed
+       ones only recoil in place. */
+    var kb = opts.knockback === undefined ? 10 : opts.knockback;
+    e.recoil = 1;
+    e.recoilDir = dir;
+    if (!e.def.fixed) {
+      e.vx = dir * kb;
+      e.vy = Math.max(e.vy, opts.up === undefined ? 3 : opts.up);
+    }
+    if (P.FX) P.FX.sparks(e.x + dir * 0.3, e.y + e.h * 0.6, dir, e.hp <= 0 ? 16 : 9);
     if (e.hp <= 0) {
       e.dead = true; e.deadT = 0;
       if (P.Game) P.Game.onKill(e);
@@ -224,14 +232,29 @@
         e.group.rotation.z += dt * 3;
         e.group.position.y -= dt * 2;
         e.group.scale.setScalar(Math.max(0.01, 1 - e.deadT * 1.6));
-        if (e.deadT > 0.7) { scene.remove(e.group); E.list.splice(i, 1); }
+        if (e.deadT === dt && P.FX) P.FX.burst(e.x, e.y + e.h * 0.5, 22);
+        if (e.deadT > 0.7) {
+          if (P.Lights && e.glow && e.glow.obj) P.Lights.drop(e.glow);
+          scene.remove(e.group); E.list.splice(i, 1);
+        }
         continue;
       }
 
-      e.def.ai(e, dt);
+      /* A hit enemy stops thinking for a moment: it is being knocked about, not
+         patrolling. Without this the knockback is immediately fought by the AI. */
+      if (e.recoil > 0) e.recoil = Math.max(0, e.recoil - dt * 3.5);
+      if (e.recoil < 0.55) e.def.ai(e, dt);
       if (!e.def.fixed) moveBody(e, dt, e.def.gravity);
       e.group.position.set(e.x, e.y, 0);
       if (!e.def.fixed) e.group.rotation.y = e.facing > 0 ? 0 : Math.PI;
+
+      /* Recoil pose: squashed along the hit direction and tipped back. */
+      var rc = e.recoil;
+      e.group.scale.set(1 + rc * 0.25, 1 - rc * 0.22, 1 + rc * 0.15);
+      e.group.rotation.z = -e.recoilDir * rc * 0.35 * (e.facing > 0 ? 1 : -1);
+      if (e.optic && e.flash > 0) {
+        e.optic.material.color.setRGB(1, 1 - e.flash * 0.6, 1 - e.flash * 0.6);
+      }
 
       /* Contact damage. */
       if (e.def.contact && !p.dead) {
@@ -244,14 +267,14 @@
   };
 
   /* Melee query used by the player's attack. */
-  E.hitBox = function (x, y, w, h, dmg, dir) {
+  E.hitBox = function (x, y, w, h, dmg, dir, opts) {
     var n = 0;
     for (var i = 0; i < E.list.length; i++) {
       var e = E.list[i];
       if (e.dead) continue;
       if (x < e.x + e.w / 2 && x + w > e.x - e.w / 2 &&
           y < e.y + e.h && y + h > e.y) {
-        if (E.hurt(e, dmg, dir)) n++;
+        if (E.hurt(e, dmg, dir, opts)) n++;
       }
     }
     return n;

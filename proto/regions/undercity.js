@@ -143,7 +143,6 @@
     b.backdrop(b.M.wallDark);
     b.floor(0, 24, 4.5);
     b.ceiling(0, 24, 18);
-    b.wall(21, 24, 4.5, 18);             // dead end for now: the opening ends here
 
     b.platform(4, 12, 10);
 
@@ -161,9 +160,56 @@
     b.fg(2, 11, 1.2, 20);
   });
 
+  /* ==========================================================================
+     (10,7) THE SPUR — where the opening hands off
+     ATLAS has dispatched maintenance, so this is the first room that is actively
+     hostile: two Crawlers and no cover. It also opens downward, which is the first
+     time the world admits it goes somewhere other than east.
+     ========================================================================== */
+  A.chunk(10, 7, function (b) {
+    b.backdrop(b.M.wall, -6);
+    b.floor(0, 15, 4.5);
+    /* The floor stops. Beyond is the drop into the rest of the Undercity. */
+    b.floor(20, 24, 4.5);
+    b.ceiling(0, 24, 20);
+
+    b.platform(6, 13, 10);
+    b.platform(15, 21, 14);
+
+    b.enemy('crawler', 9, 5, { facing: -1 });
+    b.enemy('crawler', 22, 5, { facing: -1 });
+
+    b.lamp(3, 4.5, 0xffb23d, 3.2);
+    b.neon('4-B', 18, 16, 0xff4459, { scale: 0.7, intensity: 2.2 });
+    b.light(12, 12, 0xff4459, 1.2, 14);
+    b.pipes(12, 18.5, 24, 2);
+    b.cable(0, 19, 24, 18, 1.4);
+    b.steam(17, 4.5);
+    b.clutter(5, 4.5);
+    b.fg(23, 11, 1.2, 20);
+  });
+
+  /* (10,8) below the gap: a soft landing, so the first drop is an invitation and
+     not a punishment. */
+  A.chunk(10, 8, function (b) {
+    b.backdrop(b.M.wallDark);
+    b.floor(0, 24, 3);
+    b.wall(0, 2, 3, 24);
+    b.wall(22, 24, 3, 24);
+    b.platform(13, 20, 15);
+    b.platform(4, 11, 10);
+    b.lamp(6, 3, 0xffb23d, 3.0);
+    b.light(12, 8, 0xffb23d, 1.3, 16);
+    b.deadBot(17, 3, -1);
+    b.clutter(9, 3);
+    b.steam(20, 3);
+    b.drip(12, 22, 3.2);
+    b.fg(2, 9, 1.2, 18);
+  });
+
   /* Fill the chunks directly above the opening so the ceiling reads as rock rather
      than as the edge of the world. */
-  [5, 6, 7, 8, 9].forEach(function (cx) {
+  [5, 6, 7, 8, 9, 10].forEach(function (cx) {
     A.chunk(cx, 6, function (b) {
       b.wall(0, 24, 0, 24, b.M.wallDark);
     });

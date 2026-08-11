@@ -105,9 +105,10 @@
   /* --- dressing --------------------------------------------------------------- */
 
   Builder.prototype.light = function (x, y, color, intensity, range) {
-    var l = new THREE.PointLight(color, intensity || 2, range || 12, 2);
-    l.position.set(this.ox + x, this.oy + y, 1);
-    this.g.add(l);
+    var anchor = new THREE.Object3D();
+    anchor.position.set(this.ox + x, this.oy + y, 1);
+    this.g.add(anchor);
+    if (P.Lights) P.Lights.attach(anchor, color, intensity || 2, range || 12);
     return this;
   };
 
@@ -217,13 +218,14 @@
       }));
     strip.position.set(0, 4.2, 0.9);
     g.add(strip);
-    var l = new THREE.PointLight(0x4de3ff, 1.6, 9, 2);
-    l.position.set(0, 3, 2);
-    g.add(l);
-    var base = l.intensity;
+    var anchor = new THREE.Object3D();
+    anchor.position.set(0, 3, 2);
+    g.add(anchor);
+    var em = P.Lights ? P.Lights.attach(anchor, 0x4de3ff, 1.6, 9) : null;
+    var base = 1.6;
     K.animate(function (t) {
       var p = 0.55 + 0.45 * Math.sin(t * 1.1);
-      l.intensity = base * p;
+      if (em) em.intensity = base * p;
       strip.material.color.setRGB(0.05 + p * 0.15, 0.3 + p * 0.5, 0.45 + p * 0.55);
     });
     g.position.set(this.ox + x, this.oy + y, -1.5);

@@ -55,6 +55,9 @@
     fill.position.set(12, -8, 10);
     scene.add(fill);
 
+    /* Constant-size light pool, created before any chunk exists. */
+    if (P.Lights) P.Lights.init(scene, 8);
+    if (P.FX) P.FX.init(scene);
     P.Tex && P.Kit && P.World.init(scene);
     if (P.Enemies) P.Enemies.init(scene, P.World.mats);
     P.Player.build(scene, P.World.mats);
@@ -119,9 +122,23 @@
         if (!W.chunks[cx + ',' + cy]) { W.buildChunk(cx, cy); temp.push(cx + ',' + cy); }
       }
     }
+    /* Compile, then actually RENDER from inside each sample chunk. renderer.compile
+       misses programs that only appear once an object is lit, shadowed or frustum-
+       visible from a particular angle, and those are exactly the ones that stalled on
+       first entry to a region. Rendering from each sample forces all of them. */
     renderer.compile(scene, camera);
-    /* One real render forces program linking and texture upload for everything. */
-    P.PostFX.render(scene, camera, 0);
+    var savedX = camera.position.x, savedY = camera.position.y;
+    for (var w = 0; w < temp.length; w++) {
+      var parts = temp[w].split(',');
+      var wx = (+parts[0]) * W.CW + W.CW / 2;
+      var wy = W.chunkOriginY(+parts[1]) + W.CH / 2;
+      camera.position.set(wx, wy, 48);
+      camera.lookAt(wx, wy, 0);
+      if (P.Lights) P.Lights.update(wx, wy, 1);
+      P.PostFX.render(scene, camera, 0);
+    }
+    camera.position.set(savedX, savedY, 48);
+    camera.lookAt(savedX, savedY, 0);
     for (var i = 0; i < temp.length; i++) W.disposeChunk(temp[i]);
     W.stream(P.Player.x, P.Player.y);
     W.flush();
@@ -173,12 +190,10 @@
       if (e.code === 'Space' || e.code === 'KeyX' || e.code === 'KeyW' || e.code === 'ArrowUp') input.jumpPressed = 1;
       if (e.code === 'ShiftLeft' || e.code === 'KeyC') input.dashPressed = 1;
       if (e.code === 'KeyJ' || e.code === 'KeyZ') input.attackPressed = 1;
-      /* Any confirm key advances dialogue instead of acting on the world. */
+      /* E advances dialogue. Jump and attack are never stolen — you can fight your
+         way through a conversation. */
       if (P.Game && P.Game.dialogue.active &&
-          ['Space','KeyX','KeyJ','KeyZ','KeyE','Enter'].indexOf(e.code) >= 0) {
-        P.Game.advance();
-        input.jumpPressed = 0; input.attackPressed = 0;
-      }
+          ['KeyE','Enter'].indexOf(e.code) >= 0) P.Game.advance();
       // toggles
       if (e.code === 'KeyP') { P.opts.pixelate = P.opts.pixelate ? 0 : 1; applyOpts(); }
       if (e.code === 'KeyO') { P.opts.palette = P.opts.palette > 0 ? 0 : 0.85; applyOpts(); }
@@ -241,6 +256,12 @@
     time += dt;
 
     var kd = P.keys || {};
+    /* Hitstop scales the whole simulation to zero briefly without stopping the loop,
+       so effects and the camera still breathe during the freeze. */
+    if (P.Game && P.Game.stopT > 0) {
+      P.Game.stopT = Math.max(0, P.Game.stopT - dt);
+      dt *= 0.06;
+    }
     var locked = P.Game && P.Game.locked();
     input.left = (!locked && (kd.ArrowLeft || kd.KeyA)) ? 1 : 0;
     input.right = (!locked && (kd.ArrowRight || kd.KeyD)) ? 1 : 0;
@@ -250,6 +271,7 @@
     input.jumpPressed = 0; input.jumpReleased = 0; input.dashPressed = 0;
     input.attackPressed = 0;
 
+    if (P.FX) P.FX.update(dt);
     if (P.Enemies) P.Enemies.update(dt);
     if (P.Game) P.Game.update(dt);
 
@@ -258,6 +280,7 @@
        streaming radius keeps a ring of slack ahead of the player, so nothing pops in. */
     P.World.pump(3);
     P.Kit.tick(time, dt);
+    if (P.Lights) P.Lights.update(camX, camY, dt);
     updateRain(dt);
 
     /* Camera: damped follow with velocity look-ahead. Deliberately loose — a tight
@@ -332,7 +355,7 @@
       'FPS ' + i.fps + '   ' + i.res + '   draws ' + i.draws + '   tris ' + i.tris + '\n' +
       'worst ' + i.worst + ' ms   hitches ' + i.hitches + '   pending ' + i.pending + '\n' +
       'chunk ' + i.chunk + '   live ' + i.chunks + '   geo ' + i.geo +
-        '   tex ' + i.tex + '   anim ' + i.anim + '\n' +
+        '   tex ' + i.tex + '   anim ' + i.anim + '   emitters ' + (P.Lights ? P.Lights.count() : 0) + '\n' +
       'pos ' + i.pos + '   hp ' + (P.Game ? P.Game.hp : '-') + '   enemies ' + ((P.World.stats && P.World.stats.enemies) || 0) + '\n' +
       '[P] pixelate ' + (P.opts.pixelate ? 'ON' : 'OFF') +
       '   [O] palette ' + (P.opts.palette ? 'ON' : 'OFF') +

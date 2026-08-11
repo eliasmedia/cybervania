@@ -127,6 +127,11 @@
     if (G.hp <= 0) { G.hp = 0; G.dead = true; G.deadT = 0; }
   };
 
+  /* Hitstop: freeze the world for a few frames on impact. Cheapest, strongest way to
+     give an attack weight — the pause is what the player reads as force. */
+  G.stopT = 0;
+  G.hitstop = function (sec) { G.stopT = Math.max(G.stopT, sec); };
+
   G.update = function (dt) {
     G.invuln = Math.max(0, G.invuln - dt);
     G.hitFlash = Math.max(0, (G.hitFlash || 0) - dt * 3);
@@ -145,7 +150,10 @@
     }
   };
 
-  G.locked = function () { return dlg.active || G.dead; };
+  /* Dialogue no longer blocks movement. Being frozen while an enemy decides to attack
+     is never the player's fault, and ATLAS talking at you is ambient by design — the
+     city does not stop because something is being broadcast. Only death locks input. */
+  G.locked = function () { return G.dead; };
 
   /* --------------------------------------------------------------------------
      HUD — drawn into a low-res overlay so its pixels match the game's pixels

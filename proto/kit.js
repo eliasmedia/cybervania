@@ -25,6 +25,7 @@
     animators.push(fn);
   };
   K.ownGeo = function (g) { if (rec) rec.geo.push(g); return g; };
+  K.ownLight = function (e) { if (rec) (rec.lights || (rec.lights = [])).push(e); return e; };
   K.ownMat = function (m) { if (rec) rec.mat.push(m); return m; };
 
   K.dropRecord = function (r) {
@@ -35,6 +36,7 @@
     }
     for (var g = 0; g < r.geo.length; g++) r.geo[g].dispose();
     for (var m = 0; m < r.mat.length; m++) r.mat[m].dispose();
+    if (r.lights && P.Lights) for (var l = 0; l < r.lights.length; l++) P.Lights.drop(r.lights[l]);
   };
 
   K.tick = function (t, dt) {
@@ -229,19 +231,20 @@
     back.position.z = -0.14;
     g.add(back);
 
-    /* A real light, so the sign actually illuminates the street and the wet ground
-       picks it up. This is the whole reason to be in 3D. */
-    var light = new THREE.PointLight(colorHex, opts.intensity || 2.6, opts.range || 14, 2);
-    light.position.z = 1.0;
-    g.add(light);
+    /* Registered as an emitter, not a PointLight: the scene keeps a constant number
+       of real lights (see proto/lights.js) so nothing ever triggers a shader recompile. */
+    var anchor = new THREE.Object3D();
+    anchor.position.z = 1.0;
+    g.add(anchor);
+    var baseI = opts.intensity || 2.6;
+    var em = P.Lights ? P.Lights.attach(anchor, colorHex, baseI, opts.range || 14) : null;
 
-    var baseI = light.intensity;
     var seed = Math.random() * 100;
     K.animate(function (t) {
       /* Broken-tube flicker: mostly on, with brief dropouts. */
       var n = Math.sin(t * 13.1 + seed) * Math.sin(t * 7.3 + seed * 2.1);
       var flick = n < -0.86 ? 0.15 : (0.88 + 0.12 * Math.sin(t * 30 + seed));
-      light.intensity = baseI * flick;
+      if (em) em.intensity = baseI * flick;
       face.material.opacity = 0.55 + 0.45 * flick;
     });
     return g;
@@ -320,9 +323,10 @@
     }));
     bulb.position.set(0.3, height - 0.13, 0);
     g.add(bulb);
-    var l = new THREE.PointLight(colorHex, 1.9, 11, 2);
-    l.position.set(0.3, height - 0.4, 0);
-    g.add(l);
+    var anchor = new THREE.Object3D();
+    anchor.position.set(0.3, height - 0.4, 0);
+    g.add(anchor);
+    if (P.Lights) P.Lights.attach(anchor, colorHex, 1.9, 11);
     return g;
   };
 

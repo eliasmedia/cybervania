@@ -26,7 +26,7 @@
 <div id="help">
   A / D  or  ← →   move<br>
   SPACE   jump (hold = higher, twice = double)<br>
-  SHIFT   dash &nbsp;&nbsp; J / Z  attack<br>
+  SHIFT   dash &nbsp;&nbsp; J / Z  attack &nbsp;&nbsp; E  advance text<br>
   <br>
   P  pixelation on/off &nbsp; O  palette snap<br>
   B  bloom &nbsp; L  scanlines &nbsp; R  resolution
@@ -47,29 +47,45 @@ window.addEventListener('error', function (e) {
 
 <!-- three.js r128, vendored locally as a UMD build so this page still opens from file:// -->
 <script src="vendor/three.min.js"></script>
-<script src="proto/textures.js"></script>
-<script src="proto/kit.js"></script>
-<script src="proto/authored.js"></script>
-<script src="proto/enemies.js"></script>
-<script src="proto/game.js"></script>
-<script src="proto/regions/undercity.js"></script>
-<script src="proto/world.js"></script>
-<script src="proto/player.js"></script>
-<script src="proto/postfx.js"></script>
-<script src="proto/main.js"></script>
 <script>
+/* Load engine modules in order. Opening the page with ?dev appends a cache-buster so
+   edits show up on a plain reload; without it the browser cache is used normally. */
 (function () {
-  if (!window.THREE) {
-    document.getElementById('err').style.display = 'block';
-    document.getElementById('err').textContent = 'three.js failed to load from vendor/three.min.js';
-    return;
+  var BUST = /[?&](dev|nocache)\b/.test(location.search) ? '?t=' + Date.now() : '';
+  var FILES = [
+    'proto/textures.js', 'proto/lights.js', 'proto/fx.js', 'proto/kit.js', 'proto/authored.js',
+    'proto/enemies.js', 'proto/game.js', 'proto/regions/undercity.js',
+    'proto/world.js', 'proto/player.js', 'proto/postfx.js', 'proto/main.js'
+  ];
+  var i = 0;
+  (function next() {
+    if (i >= FILES.length) { window.__protoLoaded = true; return start(); }
+    var s = document.createElement('script');
+    s.src = FILES[i] + BUST;
+    s.onload = function () { i++; next(); };
+    s.onerror = function () {
+      var e = document.getElementById('err');
+      e.style.display = 'block';
+      e.textContent = 'Failed to load ' + FILES[i];
+    };
+    document.head.appendChild(s);
+  })();
+
+  function start() {
+    if (!window.THREE) {
+      var e = document.getElementById('err');
+      e.style.display = 'block';
+      e.textContent = 'three.js failed to load from vendor/three.min.js';
+      return;
+    }
+    var canvas = document.getElementById('c');
+    PROTO.boot(canvas);
+    document.getElementById('boot').style.display = 'none';
+    canvas.focus();
+    PROTO.loop();
   }
-  var canvas = document.getElementById('c');
-  PROTO.boot(canvas);
-  document.getElementById('boot').style.display = 'none';
-  canvas.focus();
-  PROTO.loop();
 })();
 </script>
+
 </body>
 </html>
