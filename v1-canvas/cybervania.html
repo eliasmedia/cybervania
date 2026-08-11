@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>CYBERVANIA</title>
+<meta name="description" content="A maintenance robot the system cannot see. A 2.5D cyberpunk metroidvania.">
+<style>
+  html,body{margin:0;padding:0;background:#05060a;color:#7ef2d0;overflow:hidden;
+    font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;height:100%;}
+  #cv-stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 45%,#0b1018 0%,#04050a 70%,#000 100%);}
+  #cv-screen{image-rendering:pixelated;image-rendering:crisp-edges;display:block;
+    box-shadow:0 0 60px rgba(0,220,255,.09),0 0 160px rgba(255,0,140,.05);
+    background:#000;touch-action:none;outline:none;}
+  #cv-boot{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;background:#04050a;z-index:20;transition:opacity .45s;}
+  #cv-boot h1{font-size:13px;letter-spacing:.72em;margin:0;color:#9df;font-weight:400;
+    text-shadow:0 0 12px rgba(80,200,255,.55);text-indent:.72em;}
+  #cv-bar{width:230px;height:2px;background:#12202c;overflow:hidden;}
+  #cv-bar i{display:block;height:100%;width:0;background:#4de3ff;
+    box-shadow:0 0 8px #4de3ff;transition:width .18s;}
+  #cv-msg{font-size:10px;letter-spacing:.22em;color:#2f5f70;min-height:12px;}
+  #cv-err{position:fixed;inset:0;z-index:40;display:none;padding:40px;background:#0a0406;
+    color:#ff7a90;font-size:12px;line-height:1.7;overflow:auto;white-space:pre-wrap;}
+  #cv-err b{color:#fff;}
+</style>
+</head>
+<body>
+
+<div id="cv-stage"><canvas id="cv-screen" width="512" height="288" tabindex="0"></canvas></div>
+
+<div id="cv-boot">
+  <h1>CYBERVANIA</h1>
+  <div id="cv-bar"><i></i></div>
+  <div id="cv-msg">INITIALISING</div>
+</div>
+
+<div id="cv-err"></div>
+
+<script>
+/* Boot harness. Loads the engine as classic scripts so that cybervania.html works both when
+   opened directly from disk (file://) and when served from any static host. ES modules and
+   fetch() are deliberately avoided: both are blocked under file:// by CORS. */
+(function () {
+  var BASE = 'cybervania/';
+  var MANIFEST = [
+    // --- core ---------------------------------------------------------------
+    'src/core/util.js', 'src/core/rng.js', 'src/core/input.js', 'src/core/engine.js',
+    // --- render -------------------------------------------------------------
+    'src/render/palette.js', 'src/render/gfx.js', 'src/render/sprites.js',
+    'src/render/particles.js', 'src/render/parallax.js', 'src/render/postfx.js',
+    // --- data ---------------------------------------------------------------
+    'data/regions.js', 'data/lore.js', 'data/dialogue.js',
+    // --- world --------------------------------------------------------------
+    'src/world/tiles.js', 'src/world/room.js', 'src/world/collision.js',
+    'src/world/camera.js', 'src/world/world.js',
+    // --- maps ---------------------------------------------------------------
+    'maps/undercity.js', 'maps/house.js', 'maps/neoncity.js', 'maps/oldnetwork.js',
+    'maps/factory.js', 'maps/servers.js', 'maps/reactor.js', 'maps/central.js',
+    // --- gameplay -----------------------------------------------------------
+    'src/player/frames.js', 'src/modules/modules.js', 'src/combat/combat.js',
+    'src/player/player.js', 'src/enemies/enemy.js', 'src/enemies/types.js',
+    'src/bosses/bosses.js', 'src/datasphere/datasphere.js',
+    // --- shell --------------------------------------------------------------
+    'src/audio/audio.js', 'src/save/save.js',
+    'src/ui/dialog.js', 'src/ui/hud.js', 'src/ui/map.js', 'src/ui/menu.js', 'src/ui/title.js',
+    'src/debug/debug.js', 'src/game.js'
+  ];
+
+  var boot = document.getElementById('cv-boot'),
+      bar  = document.querySelector('#cv-bar i'),
+      msg  = document.getElementById('cv-msg'),
+      errE = document.getElementById('cv-err'),
+      i    = 0;
+
+  function fail(what, e) {
+    errE.style.display = 'block';
+    errE.innerHTML = '<b>CYBERVANIA — LOAD FAULT</b>\n\n' + what +
+      (e && e.message ? '\n\n' + e.message : '') +
+      '\n\nIf you opened this file directly and your browser blocks local scripts,' +
+      '\nserve the folder instead:\n\n    python3 -m http.server 8000\n\n' +
+      'then open  http://localhost:8000/cybervania.html';
+    boot.style.display = 'none';
+    if (e) { try { console.error(e); } catch (_) {} }
+  }
+
+  window.addEventListener('error', function (ev) {
+    if (errE.style.display !== 'block') fail('Runtime fault in ' + (ev.filename || '?') +
+      ':' + (ev.lineno || 0), ev.error || { message: ev.message });
+  });
+
+  /* Opening the page with ?dev appends a cache-buster to every script, so edits show
+     up on a plain reload. Off by default: normal loads should use the HTTP cache. */
+  var BUST = /[?&](dev|nocache)\b/.test(location.search) ? '?t=' + Date.now() : '';
+
+  function next() {
+    if (i >= MANIFEST.length) return start();
+    var src = MANIFEST[i], s = document.createElement('script');
+    msg.textContent = src.replace(/^.*\//, '').replace('.js', '').toUpperCase();
+    bar.style.width = Math.round((i / MANIFEST.length) * 100) + '%';
+    s.src = BASE + src + BUST;
+    s.onload = function () { i++; next(); };
+    s.onerror = function () { fail('Could not load  ' + BASE + src); };
+    document.head.appendChild(s);
+  }
+
+  function start() {
+    bar.style.width = '100%';
+    msg.textContent = 'READY';
+    try {
+      window.CV.Game.boot(document.getElementById('cv-screen'));
+    } catch (e) { return fail('Engine failed to start.', e); }
+    boot.style.opacity = '0';
+    setTimeout(function () { boot.style.display = 'none'; }, 460);
+  }
+
+  next();
+})();
+</script>
+</body>
+</html>

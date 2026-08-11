@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+._*
+
+# editors
+.vscode/
+.idea/
+*.swp
+
+# node (only used for the offline validators; nothing is installed at runtime)
+node_modules/
+npm-debug.log*
+
+# local scratch
+/tmp/
+*.local.*
+
+# NOTE: vendor/three.min.js IS committed on purpose.
+# The game loads it as a classic <script> so the page still opens from file://
+# with no build step and no network. It is a vendored dependency, not a build artefact.
