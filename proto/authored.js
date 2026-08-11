@@ -93,12 +93,16 @@
     return this;
   };
 
+  /* A ceiling fills from `y` to the top of the chunk. Capping it at a fixed thickness
+     left a walkable void between the slab and the rock above — dead space the player
+     cannot reach but which reads to the layout checker as a second route. Rock should
+     be rock all the way up. */
   Builder.prototype.ceiling = function (x0, x1, y) {
-    var w = x1 - x0;
-    var m = new THREE.Mesh(K.box(w, 4, 10), this.M.wallDark);
+    var w = x1 - x0, h = Math.max(2, P.World.CH - y);
+    var m = new THREE.Mesh(K.box(w, h, 10), this.M.wallDark);
     m.receiveShadow = true;
-    this.at(m, x0 + w / 2, y + 2, -1);
-    this.solid(x0, y, w, 4);
+    this.at(m, x0 + w / 2, y + h / 2, -1);
+    this.solid(x0, y, w, h);
     return this;
   };
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CYBERVANIA — 3D / pixel prototype</title>
+<title>CYBERVANIA</title>
 <style>
   html,body{margin:0;padding:0;background:#04050a;overflow:hidden;height:100%;
     font-family:ui-monospace,Menlo,Consolas,monospace;color:#7ef2d0;}
@@ -38,7 +38,7 @@
 window.addEventListener('error', function (e) {
   var el = document.getElementById('err');
   el.style.display = 'block';
-  el.textContent = 'PROTOTYPE FAULT\n\n' + (e.message || '') + '\n\n' +
+  el.textContent = 'CYBERVANIA — FAULT\n\n' + (e.message || '') + '\n\n' +
     (e.filename || '') + ':' + (e.lineno || '') + '\n\n' +
     ((e.error && e.error.stack) || '');
   var b = document.getElementById('boot'); if (b) b.style.display = 'none';

@@ -96,7 +96,7 @@
     P.scene = scene;
     P.camera = camera;
     /* ?validate runs the authored-geometry checks at boot and reports to the console. */
-    if (P.Validate && /[?&]validate\b/.test(location.search)) P.Validate.run();
+    if (P.Validate && /[?&]validate\b/.test(location.search)) P.Validate.all();
     P.ready = true;
   };
 

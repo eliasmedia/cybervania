@@ -105,6 +105,74 @@ The specific correction for "Meat Boy vs Hollow Knight":
    *by*. In one continuous world this replaces the map as the primary orientation tool.
 6. **The camera breathes.** Loose follow, wide framing, and it pulls back in large spaces.
 
+### 5a. Platform placement
+
+Playtest: *"man kann im grunde einfach über die plattformen laufen und jeden gegner am
+boden skippen"*. Correct, and it made every ground enemy decoration. The cause was placing
+ledges as generic climbing furniture in every room, which incidentally built a continuous
+elevated highway parallel to the critical path.
+
+Four rules, checked automatically by `proto/validate.js`:
+
+1. **Every platform answers "what is this for?"** — exactly one of: reach a reward, give a
+   vantage over an encounter, cross a hazard, or offer a risk/reward alternative that
+   costs something real. A platform that exists because the room looked empty is deleted.
+2. **No second full-width route.** If a chunk can be crossed end to end at two different
+   heights, the upper one is a bypass and the encounter below is decoration. Vertical
+   routes must dead-end, double back, or lead to a different exit.
+3. **Encounters own the ground.** If an enemy is meant to be fought, the way past it is at
+   its level. Avoiding it should cost a resource — health, time, or a dash — not simply
+   be the default.
+4. **Fewer, larger, higher.** One broad ledge that leads somewhere beats four small ones
+   that lead along. Height is for looking down at what you are about to walk into.
+
+Applied to the opening, this took it from twelve ledges to eight, and four of the eight
+are the single climb out of the sump. Two of the three rooms with an enemy in them now
+have no ledge at all — the Cistern's vantage is the shape of the floor, not furniture on
+top of it.
+
+### 5b. The jump envelope — measured, not assumed
+
+Every number below came out of driving the real controller in a sweep over takeoff
+position and second-jump timing, with the ledge grab suppressed so only feet-clearance
+counted. Guessing these wrong is what produced a softlocked chamber and three separate
+"technically clearable" jumps that only worked because the assist rescued them.
+
+| | Measured |
+|---|---|
+| Single jump, held | **2.84** units |
+| Double jump | **4.97** units |
+| Horizontal travel at apex | **~3.1** units |
+| Gap cleared by a running single jump | ~6 units |
+| Gap cleared by a double jump | ~10 units |
+
+Which gives three rules for placing any ledge:
+
+1. **A step is 4.5, not 5.** Five is inside the 4.97 envelope on paper and lands on the
+   ledge grab in practice. At 4.5 the assist is slack instead of the plan.
+2. **A landing zone starts about 3 units from the takeoff and is at least 4 wide.** The
+   arc peaks three units out and holds height for roughly two and a half more. A
+   three-unit target gets overshot four times in five.
+3. **A takeoff needs 7.5 units of clear air above it** — 4.5 to rise plus R-17's 3. Two
+   ledges 4.5 apart that overlap horizontally are fine to stand between and *impossible
+   to jump from*. This one is invisible in the source and cost the most debugging: a
+   ledge tucked under a floor slab let R-17 top out 1.5 units short, on every timing.
+
+### 5c. What the validator checks
+
+`proto/validate.js`, run with `?validate` or `PROTO.Validate.all()`:
+
+| Check | Fails when |
+|---|---|
+| `run()` | a walkable surface has less than 3 units of headroom, or two surfaces form a pocket |
+| `bypass()` | a chunk can be crossed end to end without entering a ground enemy's reach |
+| `reach()` | any authored chunk cannot be reached from the spawn |
+
+`bypass()` and `reach()` deliberately model the player differently. `bypass()` assumes an
+optimistic 5.6-unit rise, so a route it calls unusable really is one. `reach()` assumes a
+pessimistic 4.6, so a route it calls reachable does not depend on the ledge grab. Neither
+replaces driving the controller at a jump, which is what caught everything in 5b.
+
 ## 6. Proposed order of work
 
 | Phase | Deliverable |

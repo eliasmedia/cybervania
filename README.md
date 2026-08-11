@@ -9,16 +9,16 @@ no server.
 
 ## Current state
 
-The project is mid-rewrite. Playtest feedback on the original Canvas2D build was that it
-read as a twitch platformer with disconnected screens rather than a continuous, atmospheric
-world — see `REDESIGN.md` for the full assessment and plan.
+The 3D/pixel build is now the game. The original Canvas2D build is archived — playtest
+feedback was that it read as a twitch platformer with disconnected screens rather than a
+continuous, atmospheric world. See `REDESIGN.md` for the assessment and the plan.
 
 | | What it is | Run it |
 |---|---|---|
-| **`prototype-3d.html`** | **Active direction.** Real 3D geometry rendered to a low-res buffer and snapped to a fixed palette. One continuous chunk-streamed world, no rooms and no transitions. | double-click it |
+| **`cybervania.html`** | **The game.** Real 3D geometry rendered to a low-res buffer and snapped to a fixed palette. One continuous chunk-streamed world, no rooms and no transitions. | double-click it |
 | `v1-canvas/` | Archived tile build. Complete and playable — 38 rooms, 6 bosses, full story — but superseded. Several systems port forward. | `v1-canvas/cybervania.html` |
 
-## The prototype
+## Playing
 
 **Controls:** `A`/`D` or arrows to move · `Space` jump (hold for height, twice to double
 jump) · `Shift` dash.
@@ -29,8 +29,11 @@ stolen by a conversation.
 **Toggles:** `P` pixelation · `O` palette snap · `B` bloom · `L` scanlines · `R` internal
 resolution. Press `P` to see the raw 3D underneath the treatment.
 
-**Checks:** add `?validate` to the URL to run the authored-geometry checks at boot
-(headroom and pocket detection), and `?dev` to bypass the browser cache while editing.
+**Checks:** add `?validate` to the URL to run the authored-geometry checks at boot, and
+`?dev` to bypass the browser cache while editing. Three checks run: headroom/pocket
+detection, encounter-bypass detection (can a room be crossed without entering an enemy's
+reach?), and reachability from the spawn. `REDESIGN.md §5b–5c` has the measured jump
+envelope they are built on.
 
 ### How the look works
 
@@ -74,7 +77,7 @@ page still opens from `file://`.
 ## Layout
 
 ```
-prototype-3d.html      active prototype entry point
+cybervania.html        entry point
 proto/
   textures.js          procedural Canvas2D surface textures
   lights.js            fixed-size light pool (see REDESIGN.md section 9)
@@ -106,7 +109,7 @@ v1-canvas/             archived Canvas2D build
 
 ## Requirements
 
-A browser with WebGL. The prototype opens from `file://`; if your browser blocks local
+A browser with WebGL. The game opens from `file://`; if your browser blocks local
 scripts, serve the folder instead:
 
 ```bash
