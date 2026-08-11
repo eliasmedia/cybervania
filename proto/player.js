@@ -35,7 +35,7 @@
   PL.walk = 0; PL.squash = 0; PL.land = 0; PL.jumpKick = 0;
   PL.atkState = 0; PL.atkTimer = 0; PL.atkIndex = 0; PL.comboTimer = 0; PL.atkPhase = 0;
   PL.ledge = 0; PL.ledgeT = 0; PL.ledgeX = 0; PL.ledgeY = 0;
-  PL.lean = 0;
+  PL.lean = 0; PL.faceVis = 1;
 
   var J = {}, group, glowLight, thrusterL, thrusterR, opticMat;
 
@@ -53,9 +53,10 @@
   PL.build = function (scene) {
     group = new THREE.Group();
 
-    var body = new THREE.MeshStandardMaterial({ color: 0x93a8c0, roughness: 0.42, metalness: 0.78 });
-    var dark = new THREE.MeshStandardMaterial({ color: 0x2b3340, roughness: 0.6, metalness: 0.72 });
-    var trim = new THREE.MeshStandardMaterial({ color: 0x5a6a80, roughness: 0.5, metalness: 0.8 });
+    var SIDE = THREE.DoubleSide;
+    var body = new THREE.MeshStandardMaterial({ color: 0x93a8c0, roughness: 0.42, metalness: 0.78, side: SIDE });
+    var dark = new THREE.MeshStandardMaterial({ color: 0x2b3340, roughness: 0.6, metalness: 0.72, side: SIDE });
+    var trim = new THREE.MeshStandardMaterial({ color: 0x5a6a80, roughness: 0.5, metalness: 0.8, side: SIDE });
     opticMat = new THREE.MeshBasicMaterial({ color: 0x4de3ff, toneMapped: false });
 
     J.hips = new THREE.Group();
@@ -373,14 +374,23 @@
   function animate(dt) {
     if (!group) return;
     group.position.set(PL.x, PL.y, 0);
-    group.rotation.y = ease(group.rotation.y, PL.facing > 0 ? 0 : Math.PI, 18, dt);
+
+    /* Facing is a MIRROR, not a yaw. Rotating the rig 180 degrees turned its back to
+       the camera and, worse, tilted the limb swing plane out of world XY. Scaling X
+       negative keeps the optic and the blade arm facing the player in both directions
+       and keeps every joint swinging along the direction of travel. The materials are
+       DoubleSide because a negative scale inverts winding order. */
+    PL.faceVis = ease(PL.faceVis, PL.facing, 20, dt);
+    var mirror = PL.faceVis >= 0 ? Math.max(0.05, PL.faceVis) : Math.min(-0.05, PL.faceVis);
 
     var speed = Math.abs(PL.vx) / RUN;
-    group.scale.set(1 + PL.squash * 0.16, 1 - PL.squash * 0.20, 1 + PL.squash * 0.10);
+    group.scale.set(mirror * (1 + PL.squash * 0.16),
+                    1 - PL.squash * 0.20,
+                    1 + PL.squash * 0.10);
 
     /* Torso leans into acceleration, head counters it so the optic stays level. This
        one relationship does more for "alive" than any amount of extra geometry. */
-    var leanTarget = PL.dashT > 0 ? 0.55 : (PL.vx / RUN) * 0.22 * PL.facing;
+    var leanTarget = PL.dashT > 0 ? 0.55 : Math.abs(PL.vx / RUN) * 0.22;
     PL.lean = ease(PL.lean, leanTarget, 9, dt);
     J.torso.rotation.z = -PL.lean;
     J.head.rotation.z = PL.lean * 0.65;
@@ -404,15 +414,20 @@
       rT = 0.75 * rise - 0.35 * fall;  lT = 0.30 * rise - 0.12 * fall;
       rK = 1.50 * rise + 0.25 * fall;  lK = 0.85 * rise + 0.10 * fall;
     }
-    if (PL.dashT > 0) { rT = -0.55; lT = -0.28; rK = 0.7; lK = 0.4; }
-    if (PL.ledge) { rT = 0.5; lT = 0.18; rK = 1.25; lK = 0.65; }
+    if (PL.dashT > 0) { rT = -0.7; lT = -0.4; rK = 0.9; lK = 0.55; }
+    if (PL.ledge) { rT = -0.35; lT = -0.12; rK = 1.35; lK = 0.75; }
 
-    J.legR.thigh.rotation.x = ease(J.legR.thigh.rotation.x, rT, 22, dt);
-    J.legL.thigh.rotation.x = ease(J.legL.thigh.rotation.x, lT, 22, dt);
-    J.legR.knee.rotation.x = ease(J.legR.knee.rotation.x, rK, 22, dt);
-    J.legL.knee.rotation.x = ease(J.legL.knee.rotation.x, lK, 22, dt);
-    J.legR.foot.rotation.x = ease(J.legR.foot.rotation.x, -rK * 0.5, 18, dt);
-    J.legL.foot.rotation.x = ease(J.legL.foot.rotation.x, -lK * 0.5, 18, dt);
+    /* Limbs swing about Z, not X. This is a side-scroller: the character faces along
+       world X, so a stride has to move in the XY plane. Rotating about X swung the legs
+       toward and away from the camera — correct-looking from above, useless from the
+       side. Knees take the negated angle because a knee bends backwards; feet take half
+       the knee angle back the other way so the sole stays roughly level. */
+    J.legR.thigh.rotation.z = ease(J.legR.thigh.rotation.z, rT, 22, dt);
+    J.legL.thigh.rotation.z = ease(J.legL.thigh.rotation.z, lT, 22, dt);
+    J.legR.knee.rotation.z = ease(J.legR.knee.rotation.z, -rK, 22, dt);
+    J.legL.knee.rotation.z = ease(J.legL.knee.rotation.z, -lK, 22, dt);
+    J.legR.foot.rotation.z = ease(J.legR.foot.rotation.z, rK * 0.5, 18, dt);
+    J.legL.foot.rotation.z = ease(J.legL.foot.rotation.z, lK * 0.5, 18, dt);
 
     /* Hip bob: two bounces per stride, plus the landing crouch. */
     J.hips.position.y = ease(J.hips.position.y,
@@ -420,9 +435,9 @@
 
     var rU = -swing * 0.75 * run, lU = swing * 0.75 * run;
     var rF = -0.35 - Math.abs(rU) * 0.4, lF = -0.35 - Math.abs(lU) * 0.4;
-    if (air) { rU = -0.7; lU = -1.0; rF = -0.6; lF = -0.5; }
-    if (PL.dashT > 0) { rU = 1.5; lU = 1.7; rF = -0.3; lF = -0.25; }
-    if (PL.ledge) { rU = -2.5; lU = -2.5; rF = -0.2; lF = -0.2; }
+    if (air) { rU = -0.8; lU = -1.1; rF = -0.6; lF = -0.5; }
+    if (PL.dashT > 0) { rU = -1.5; lU = -1.7; rF = -0.3; lF = -0.25; }
+    if (PL.ledge) { rU = 2.5; lU = 2.5; rF = -0.2; lF = -0.2; }
 
     var twist = 0;
     if (PL.atkState > 0) {
@@ -440,10 +455,12 @@
       lU = -0.5 - twist * 0.6; lF = -0.7;
     }
 
-    J.armR.upper.rotation.x = ease(J.armR.upper.rotation.x, rU, 26, dt);
-    J.armL.upper.rotation.x = ease(J.armL.upper.rotation.x, lU, 26, dt);
-    J.armR.fore.rotation.x = ease(J.armR.fore.rotation.x, rF, 26, dt);
-    J.armL.fore.rotation.x = ease(J.armL.fore.rotation.x, lF, 26, dt);
+    /* Same axis correction for the arms. The elbow takes the negated angle so it
+       bends forward, opposite to the knee. */
+    J.armR.upper.rotation.z = ease(J.armR.upper.rotation.z, rU, 26, dt);
+    J.armL.upper.rotation.z = ease(J.armL.upper.rotation.z, lU, 26, dt);
+    J.armR.fore.rotation.z = ease(J.armR.fore.rotation.z, -rF, 26, dt);
+    J.armL.fore.rotation.z = ease(J.armL.fore.rotation.z, -lF, 26, dt);
     J.torso.rotation.y = ease(J.torso.rotation.y, twist, 20, dt);
     J.head.rotation.y = ease(J.head.rotation.y, -twist * 0.5, 16, dt);
 
