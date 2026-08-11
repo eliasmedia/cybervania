@@ -23,8 +23,14 @@ world — see `REDESIGN.md` for the full assessment and plan.
 **Controls:** `A`/`D` or arrows to move · `Space` jump (hold for height, twice to double
 jump) · `Shift` dash.
 
+`J`/`Z` attack (three-hit combo) · `E` advances dialogue. Jump and attack are never
+stolen by a conversation.
+
 **Toggles:** `P` pixelation · `O` palette snap · `B` bloom · `L` scanlines · `R` internal
 resolution. Press `P` to see the raw 3D underneath the treatment.
+
+**Checks:** add `?validate` to the URL to run the authored-geometry checks at boot
+(headroom and pocket detection), and `?dev` to bypass the browser cache while editing.
 
 ### How the look works
 
@@ -71,6 +77,13 @@ page still opens from `file://`.
 prototype-3d.html      active prototype entry point
 proto/
   textures.js          procedural Canvas2D surface textures
+  lights.js            fixed-size light pool (see REDESIGN.md section 9)
+  fx.js                pooled impact sparks
+  authored.js          hand-authored chunk builder
+  regions/undercity.js the opening, hand-built
+  enemies.js           Crawler and Sentinel Eye
+  game.js              health, triggers, dialogue, HUD
+  validate.js          authored-geometry checks
   kit.js               modular geometry kit + per-chunk resource tracking
   world.js             macro-map, chunk builders, streaming
   player.js            character controller + R-17 geometry

@@ -165,3 +165,39 @@ HUD so this is measurable on your machine rather than a matter of impression.
 3. **Blender pipeline.** If you want authored models, you would need to produce the `.glb`
    files and accept serving over HTTP rather than `file://`. Worth it for hero props
    (bosses, the upload rig, ATLAS) even if the environment stays procedural.
+
+## 9. Invariants (learned the hard way)
+
+Three rules that are not obvious from reading the code, each of which was violated at
+least once and cost real debugging time.
+
+**The scene's light count must never change.** three.js bakes it into every material's
+shader program, so adding or removing a light recompiles everything — a multi-second
+freeze. `proto/lights.js` keeps a constant pool of 8 `PointLight`s forever; chunks
+register *emitters* and the nearest are assigned to the pool each frame. Never add a
+`PointLight` to the scene from chunk, prop or enemy code. Use `Lights.attach(obj, ...)`.
+
+**Geometry dimensions must be quantised.** Procedural placement produces endless
+near-identical sizes, each of which misses an exact-match cache and uploads a fresh GPU
+buffer. `K.box/cyl/plane` snap to 1-unit steps, which turns thousands of unique
+geometries into a few hundred shared ones. A modular kit has a bounded piece set by
+definition; treat any unbounded dimension as a bug.
+
+**R-17 is 3 units tall, and that number governs level geometry twice.** Anything above a
+walkable surface needs its underside at least 3 units clear, or the surface is not
+walkable. Two surfaces that overlap horizontally and sit less than 3 units apart form a
+pocket the player can enter and not leave. Neither is visible when reading the numbers in
+a chunk definition — which is why `proto/validate.js` exists. Run the page with
+`?validate` (or call `PROTO.Validate.run()`) after touching any authored chunk.
+
+## 10. Side-scroller rig conventions
+
+The character faces along world X and the camera looks down world Z, which constrains the
+rig in two ways that are easy to get backwards:
+
+- **Limbs swing about Z, not X.** Rotating about X swings a limb toward and away from the
+  camera — correct from above, useless from the side.
+- **Facing is a mirror (`scale.x = ±1`), not a yaw.** Rotating the rig 180 degrees turns
+  its back to the camera and tilts the swing plane out of world XY. Mirroring requires
+  `side: THREE.DoubleSide` on the character's materials, because negative scale inverts
+  winding order.

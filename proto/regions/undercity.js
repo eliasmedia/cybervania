@@ -7,7 +7,7 @@
      (5,7) CRADLE 17    wake up. one light. one exit. nothing can hurt you.
      (6,7) DRIP SPUR    walking. a step to clear. the first dead unit.
      (7,7) THE CISTERN  the space opens. first Crawler. first fight.
-     (8,7) THE CLIMB    vertical. teaches jump height and the dash gap.
+     (8,7) THE CLIMB    vertical, and optional. the ground route runs straight through.
      (9,7) JUNCTION 4-A a Sentinel Eye sees you, and ATLAS answers.
 
    Level-design rules from REDESIGN.md section 5 are applied literally here: big spaces,
@@ -108,27 +108,44 @@
 
   /* ==========================================================================
      (8,7) THE CLIMB
-     Vertical. Staggered ledges with a comfortable 3-unit rise, then one gap that
-     wants a dash — placed so failing it costs a short climb, never a life.
+     The ground route runs straight through — the fourth room of the game is not the
+     place for a gate. The climb is an OPTIONAL branch: a reward is visible from the
+     floor, and taking it is a choice. Steps are 2.5 units against a 2.9-unit jump, and
+     every ledge overlaps the one below it horizontally, so no jump needs precision and
+     a short one gets caught by the ledge grab.
      ========================================================================== */
   A.chunk(8, 7, function (b) {
     b.backdrop(b.M.wall, -6);
-    b.floor(0, 24, 4.5);
+    b.floor(0, 24, 4.5);                 // continuous: you can simply walk east
     b.ceiling(0, 24, 23);
-    b.wall(21, 24, 4.5, 14);             // east face: you climb over it, not through
 
-    b.platform(1, 8, 8);
-    b.platform(11, 18, 11);
-    b.platform(2, 9, 14);
-    b.platform(12, 20, 17);
+    /* Optional ascent.
 
-    /* The dash gap: 6 units between the last two ledges. A full jump covers ~5,
-       a dash comfortably clears it. Missing drops you one ledge. */
-    b.platform(1, 7, 20);
+       Two constraints govern every ledge here, and getting them wrong is what made the
+       first attempt a trap:
+         1. R-17 is 3 units tall, so ANYTHING over the walking lane needs its underside
+            at least 3 units above the floor. The lowest ledge sits at y=9 (underside 8)
+            against a floor at 4.5.
+         2. Two ledges that overlap horizontally must be more than 3 units apart
+            vertically, or the player standing on the lower one cannot walk out from
+            under the upper one. Every overlapping pair here is 5 apart.
 
-    b.catwalk(15, 17.1, 7);
-    b.lamp(10, 4.5, 0x7ecfff, 3.0);
-    b.light(6, 14, 0x4de3ff, 1.1, 12);
+       The first ledge is a double-jump off the floor, which is also how the room
+       teaches that the second jump exists. */
+    b.platform(8, 15, 9);
+    b.platform(17, 23, 11.5);
+    b.platform(6, 13, 14);
+    b.platform(15, 22, 16.5);
+    b.platform(4, 11, 19);
+
+    /* What the climb is for: a dead unit slumped at the top, and the region's first
+       piece of environmental storytelling that is not on the critical path. */
+    b.deadBot(7, 19, 1);
+    b.neon('AUX', 7, 21.5, 0x5cff9d, { scale: 0.55, intensity: 1.8 });
+
+    b.catwalk(19, 11.6, 6);
+    b.lamp(11, 4.5, 0x7ecfff, 3.0);
+    b.light(8, 15, 0x4de3ff, 1.1, 12);
     b.clutter(4, 4.5);
     b.cable(0, 22, 24, 21, 1.2);
     b.fg(23, 12, 1.2, 22);
