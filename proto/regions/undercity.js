@@ -246,6 +246,14 @@
     b.enemy('crawler', 9, 5, { facing: -1 });
     b.enemy('crawler', 22, 5, { facing: -1 });
 
+    /* THE END OF THE AUTHORED WORLD, for now. With procedural fill gone there is
+       nothing east of here, so the region seals itself rather than letting the player
+       walk into empty space. A bulkhead reads as "this opens later" — which is true —
+       where a blank wall would read as the level running out. The way on from this room
+       is the drop. */
+    b.wall(23, 24, 4.5, 20);
+    b.neon('SEALED', 21, 9, 0xff4459, { scale: 0.5, intensity: 1.6 });
+
     b.lamp(3, 4.5, 0xffb23d, 3.2);
     b.neon('4-B', 18, 16, 0xff4459, { scale: 0.7, intensity: 2.2 });
     b.catwalk(4, 12, 8);                 // reads as height without being height

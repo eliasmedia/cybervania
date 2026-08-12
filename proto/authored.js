@@ -23,6 +23,24 @@
     return A;
   };
   A.has = function (cx, cy) { return !!defs[cx + ',' + cy]; };
+
+  /* The extent of the authored world, in chunk coordinates. The streamer sizes itself
+     from this, so adding a chunk is all it takes to make the world bigger. */
+  A.bounds = function () {
+    var b = { minX: Infinity, minY: Infinity, maxX: 0, maxY: 0 }, any = false;
+    for (var k in defs) {
+      var p = k.split(','), cx = +p[0], cy = +p[1];
+      if (cx < b.minX) b.minX = cx;
+      if (cy < b.minY) b.minY = cy;
+      if (cx > b.maxX) b.maxX = cx;
+      if (cy > b.maxY) b.maxY = cy;
+      any = true;
+    }
+    if (!any) { b.minX = b.minY = 0; }
+    return b;
+  };
+
+  A.keys = function () { return Object.keys(defs); };
   A.get = function (cx, cy) { return defs[cx + ',' + cy]; };
   A.count = function () { return Object.keys(defs).length; };
 

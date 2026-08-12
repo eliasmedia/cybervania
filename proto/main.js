@@ -109,20 +109,18 @@
      Costs a few hundred ms at boot and removes the whole class of first-visit hitch. */
   function prewarm() {
     var W = P.World;
-    var seen = {}, temp = [];
-    /* Several samples per chunk type, not one. Each chunk seeds its own RNG, so
-       different coordinates produce different quantised sizes — and every new size is
-       a fresh GPU buffer upload the first time it is drawn. Warming a spread of samples
-       fills the geometry cache up front, which is what removes the residual hitch on
-       the first few chunk boundaries. */
-    var SAMPLES = 12;
-    for (var cy = 0; cy < W.rows; cy++) {
-      for (var cx = 0; cx < W.cols; cx++) {
-        var t = W.typeAt(cx, cy);
-        if ((seen[t] || 0) >= SAMPLES) continue;
-        seen[t] = (seen[t] || 0) + 1;
-        if (!W.chunks[cx + ',' + cy]) { W.buildChunk(cx, cy); temp.push(cx + ',' + cy); }
-      }
+    var temp = [];
+    /* Every authored chunk, not a sample of each procedural type — there are no types
+       any more, and the whole world is small enough to warm exhaustively. Each one gets
+       built, rendered once so its shader programs link and its geometry uploads, then
+       thrown away. Costs a few hundred ms at boot and removes the entire class of
+       first-visit hitch. */
+    var keys = P.Authored ? P.Authored.keys() : [];
+    for (var i = 0; i < keys.length && i < 120; i++) {
+      if (W.chunks[keys[i]]) continue;
+      var p = keys[i].split(',');
+      W.buildChunk(+p[0], +p[1]);
+      temp.push(keys[i]);
     }
     /* Compile, then actually RENDER from inside each sample chunk. renderer.compile
        misses programs that only appear once an object is lit, shadowed or frustum-
@@ -144,7 +142,7 @@
     for (var i = 0; i < temp.length; i++) W.disposeChunk(temp[i]);
     W.stream(P.Player.x, P.Player.y);
     W.flush();
-    P.prewarmed = Object.keys(seen).length;
+    P.prewarmed = temp.length;
   }
   P.prewarm = prewarm;
 

@@ -140,12 +140,37 @@
     updateDialogue(dt);
     if (!dlg.active) T.update();
 
+    /* --- the void guard ---------------------------------------------------------
+       With procedural fill gone, anything the authoring does not cover is empty space,
+       and empty space is a bottomless pit. Rather than trusting every future chunk to
+       seal itself perfectly, the world has a floor: fall past the bottom of it and you
+       are put back on the last ground you stood on, minus a hit. A hole is then a
+       mistake that costs health, never a lost session. */
+    if (!G.dead && P.Player.grounded && P.Player.y > -1e5) {
+      G.lastGround = { x: P.Player.x, y: P.Player.y };
+    }
+    var bottom = P.World.chunkOriginY(P.World.rows - 1) - 8;
+    if (!G.dead && P.Player.y < bottom) {
+      var back = G.lastGround || G.respawn || P.World.spawnPoint();
+      P.Player.spawn(back.x, back.y + 0.5);
+      G.hurtPlayer(1, 0);
+      P.World.stream(back.x, back.y); P.World.flush();
+    }
+
     if (G.dead) {
       G.deadT += dt;
       if (G.deadT > 1.6) {
         G.dead = false; G.hp = G.maxHp; G.invuln = 1.5;
+        /* Dying is the one thing that repopulates the world. Everything you killed on
+           the way here comes back; everything you opened or learned does not. */
+        if (P.Enemies) P.Enemies.resetKills();
         var r = G.respawn || P.World.spawnPoint();
         P.Player.spawn(r.x, r.y);
+        /* Rebuild the neighbourhood so the restored enemies actually appear, rather
+           than waiting for the player to walk out of the chunk and back in. */
+        for (var k in P.World.chunks) P.World.disposeChunk(k);
+        P.World.stream(r.x, r.y);
+        P.World.flush();
       }
     }
   };

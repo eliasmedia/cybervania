@@ -14,6 +14,36 @@
   E.list = [];
   var scene = null, M = null;
 
+  /* --------------------------------------------------------------------------
+     THE KILL REGISTER
+
+     An enemy belongs to a chunk, and a chunk is thrown away and rebuilt whenever the
+     player walks far enough. Left alone, that means every enemy you kill is back the
+     moment you turn around — which is what playtest found, and it makes killing
+     anything pointless.
+
+     So a kill is remembered by where the enemy stands, not by the instance. A spawn
+     site whose id is in `killed` produces nothing. The register is cleared in exactly
+     one place: when the player dies. That is the metroidvania convention — the world
+     resets when you do, and not otherwise.
+     -------------------------------------------------------------------------- */
+  var killed = {};
+  E.killed = killed;
+
+  /* Spawn sites are identified by rounded position, so a chunk rebuild reproduces the
+     same id for the same enemy without anyone having to number them. */
+  function siteId(type, x, y) {
+    return type + '@' + Math.round(x * 2) / 2 + ',' + Math.round(y * 2) / 2;
+  }
+  E.siteId = siteId;
+
+  /* Called when the player dies. The only thing that brings the dead back. */
+  E.resetKills = function () {
+    var n = 0;
+    for (var k in killed) { delete killed[k]; n++; }
+    return n;
+  };
+
   E.init = function (sc, mats) { scene = sc; M = mats; };
 
   E.clear = function () {
@@ -23,7 +53,8 @@
     E.list.length = 0;
   };
 
-  /* Remove enemies belonging to a chunk that is being disposed. */
+  /* Remove enemies belonging to a chunk that is being disposed. This is not a kill:
+     they are rebuilt with their chunk unless the register says otherwise. */
   E.dropOutside = function (minX, maxX, minY, maxY) {
     for (var i = E.list.length - 1; i >= 0; i--) {
       var e = E.list[i];
@@ -180,8 +211,14 @@
   E.spawn = function (type, x, y, opts) {
     var def = TYPES[type];
     if (!def || !scene) return null;
+
+    var id = siteId(type, x, y);
+    if (killed[id]) return null;                    // stays dead until the player dies
+    /* Rebuilding a chunk while its enemy is still alive must not duplicate it. */
+    for (var i = 0; i < E.list.length; i++) if (E.list[i].id === id) return E.list[i];
+
     var e = {
-      type: type, def: def, x: x, y: y, vx: 0, vy: 0,
+      type: type, def: def, id: id, x: x, y: y, vx: 0, vy: 0,
       w: def.w, h: def.h, hp: def.hp, maxHp: def.hp,
       facing: (opts && opts.facing) || -1,
       grounded: false, alerted: false, turn: false,
@@ -214,6 +251,7 @@
     if (P.FX) P.FX.sparks(e.x + dir * 0.3, e.y + e.h * 0.6, dir, e.hp <= 0 ? 16 : 9);
     if (e.hp <= 0) {
       e.dead = true; e.deadT = 0;
+      killed[e.id] = 1;
       if (P.Game) P.Game.onKill(e);
     }
     return true;
