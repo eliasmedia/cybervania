@@ -81,7 +81,8 @@ The prototype already runs the retuned numbers: slower top speed (9.5 u/s), long
 **Replaced:**
 - Canvas2D tile renderer → three.js + pixel post chain
 - Room graph + door transitions → chunk-streamed continuous world
-- ASCII tilemaps → macro-map + procedural chunk builders + hand-placed set pieces
+- ASCII tilemaps → hand-authored chunk op lists (the macro-map and the procedural chunk
+  builders were added, shipped, playtested and then cut — see 5d)
 - Spike-field level design → large open spaces, hazards as rare punctuation
 
 **Deleted:** `cybervania/src/render/*`, `cybervania/src/world/room.js`,
@@ -172,6 +173,35 @@ Which gives three rules for placing any ledge:
 optimistic 5.6-unit rise, so a route it calls unusable really is one. `reach()` assumes a
 pessimistic 4.6, so a route it calls reachable does not depend on the ledge grab. Neither
 replaces driving the controller at a jump, which is what caught everything in 5b.
+
+### 5d. The editor, and why chunks became data
+
+Playtest, after the level-design pass: *"die welt zu designen wird schwierig. Entweder du
+traust dir zu eine saubere zusammenhängende welt zu bauen, oder du baust mir eine art
+entwicklertool mit dem ich die welt bearbeiten kann"*.
+
+The tool, for a reason that is not laziness: every round of feedback so far has been
+about level-design *feel* — what a room asks of you, whether a ledge earns its place —
+and that is the thing text conveys worst. A shared editor makes the loop direct. It is
+also the cheaper answer than it looks, because the authoring vocabulary already existed;
+only the storage had to change.
+
+**Chunks are data now.** A room used to be a function calling builder methods. That reads
+beautifully and can only be edited by a person with a text editor, which is why the world
+stopped growing. A room is now a list of ops — verb, arguments, optional `'# note'` —
+replayed against the same builder. `PROTO.Authored.record()` converts a legacy function
+chunk into ops by running it against a stub that captures the calls, which is how the
+opening was converted without anyone retyping it.
+
+`proto/editor.js` (F2, or `?edit`) then edits that list live in the real renderer, and
+exports a region file in exactly the shape `proto/regions/*.js` already has. Verified by
+round trip: all 13 chunks export, re-parse, and compare byte-identical, notes and room
+prose included.
+
+Three things it enforces, because they are the three that kept being got wrong:
+snapping to 0.5; a live headroom/bypass/reachability readout; and a note field on every
+op, because 5a demands every ledge answer "what is this for" and an editor that lets you
+skip that will be used to skip it.
 
 ## 6. Proposed order of work
 

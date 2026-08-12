@@ -15,6 +15,7 @@
   P.opts = { pixelate: 1, palette: 0.85, bloom: 1.0, scan: 1.0, res: 1, freeCam: 0 };
 
   P.boot = function (canvas) {
+    P.canvas = canvas;
     renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, powerPreference: 'high-performance' });
     renderer.setPixelRatio(1);
     renderer.shadowMap.enabled = true;
@@ -98,6 +99,7 @@
     /* ?validate runs the authored-geometry checks at boot and reports to the console. */
     if (P.Validate && /[?&]validate\b/.test(location.search)) P.Validate.all();
     P.ready = true;
+    if (P.bootEditor) P.bootEditor();
   };
 
   /* Compile every shader program the world can produce, before play starts.
@@ -255,6 +257,23 @@
   P.step = function (dt) {
     time += dt;
 
+    /* The editor takes the world over: no physics, no AI, no camera follow. Streaming
+       and the animator tick keep running so what you are editing still looks alive. */
+    if (P.Editor && P.Editor.active) {
+      P.Editor.step(dt);
+      camX = P.Editor.camX; camY = P.Editor.camY;
+      camera.position.set(camX, camY, P.Editor.camZ);
+      camera.lookAt(camX, camY, 0);
+      P.World.stream(camX, camY, P.Editor.radX, P.Editor.radY);
+      P.World.pump(6);
+      P.Kit.tick(time, dt);
+      if (P.Lights) P.Lights.update(camX, camY, dt);
+      P.keyLight.position.set(camX - 14, camY + 26, 18);
+      P.keyLight.target.position.set(camX, camY, 0);
+      P.keyLight.target.updateMatrixWorld();
+      return;
+    }
+
     var kd = P.keys || {};
     /* Hitstop scales the whole simulation to zero briefly without stopping the loop,
        so effects and the camera still breathe during the freeze. */
@@ -305,7 +324,8 @@
   };
 
   P.render = function () {
-    if (P.Game) P.Game.drawHUD(time);
+    /* The editor draws its own chrome; the play HUD would sit underneath it. */
+    if (P.Game && !(P.Editor && P.Editor.active)) P.Game.drawHUD(time);
     P.PostFX.render(scene, camera, time);
   };
 
@@ -350,6 +370,10 @@
   P.hud = function () {
     var el = document.getElementById('hud');
     if (!el) return;
+    /* Dev stats sit exactly where the editor's chunk grid is. Hide them while editing;
+       the editor reports what it needs in its own panel. */
+    el.style.display = (P.Editor && P.Editor.active) ? 'none' : '';
+    if (P.Editor && P.Editor.active) return;
     var i = P.info();
     el.textContent =
       'FPS ' + i.fps + '   ' + i.res + '   draws ' + i.draws + '   tris ' + i.tris + '\n' +

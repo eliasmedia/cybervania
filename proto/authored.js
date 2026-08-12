@@ -17,11 +17,56 @@
 
   var defs = {};
 
-  /* Register an authored chunk. `fn(b)` receives the builder below. */
-  A.chunk = function (cx, cy, fn) {
-    defs[cx + ',' + cy] = fn;
+  /* --------------------------------------------------------------------------
+     CHUNKS ARE DATA
+
+     A chunk used to be a function that called builder methods. That reads beautifully
+     and cannot be edited by anything except a person with a text editor — which is why
+     the world stopped growing. A chunk is now a list of ops:
+
+       ['floor', 0, 8, 4.5, '# the shelf you walk in on']
+
+     verb first, then the arguments the builder method takes, and an optional trailing
+     string beginning with '#' which is a design note. The note is not decoration: it is
+     the answer to "what is this for", it round-trips through the editor's export, and
+     REDESIGN.md 5a requires every ledge to have one.
+
+     Functions still work and are still replayed as-is. They just cannot be edited
+     visually, so anything the editor should be able to touch has to be ops.
+     -------------------------------------------------------------------------- */
+  A.chunk = function (cx, cy, def) {
+    if (typeof def === 'function') def = { fn: def };
+    else if (Array.isArray(def)) def = { ops: def };
+    def.cx = cx; def.cy = cy;
+    if (!def.ops && !def.fn) def.ops = [];
+    defs[cx + ',' + cy] = def;
     return A;
   };
+
+  /* The editable op list for a chunk, or null if it is a function. */
+  A.ops = function (cx, cy) {
+    var d = defs[cx + ',' + cy];
+    return (d && d.ops) || null;
+  };
+  A.def = function (cx, cy) { return defs[cx + ',' + cy] || null; };
+  A.remove = function (cx, cy) { delete defs[cx + ',' + cy]; };
+
+  /* Strip the trailing '# note' from an op, leaving verb + arguments. */
+  function argsOf(op) {
+    var a = op.slice(1);
+    if (a.length && typeof a[a.length - 1] === 'string' && a[a.length - 1].charAt(0) === '#') a.pop();
+    return a;
+  }
+  A.argsOf = argsOf;
+  A.noteOf = function (op) {
+    var last = op[op.length - 1];
+    return (typeof last === 'string' && last.charAt(0) === '#') ? last.slice(1).trim() : '';
+  };
+
+  /* Which argument of which verb is a material name. Resolving by position rather than
+     by "does this look like a material" keeps neon text and trigger ids from being
+     swallowed. */
+  var MAT_ARG = { backdrop: 0, floor: 3, wall: 4 };
   A.has = function (cx, cy) { return !!defs[cx + ',' + cy]; };
 
   /* The extent of the authored world, in chunk coordinates. The streamer sizes itself
@@ -298,10 +343,61 @@
 
   /* Run an authored chunk. Returns true if one existed. */
   A.build = function (cx, cy, g, col, ox, oy, M, rnd) {
-    var fn = defs[cx + ',' + cy];
-    if (!fn) return false;
-    fn(new Builder(g, col, ox, oy, M, rnd, cx, cy));
+    var d = defs[cx + ',' + cy];
+    if (!d) return false;
+    var b = new Builder(g, col, ox, oy, M, rnd, cx, cy);
+    if (d.fn) { d.fn(b); return true; }
+    A.replay(b, d.ops);
     return true;
+  };
+
+  /* --------------------------------------------------------------------------
+     RECORDING
+
+     The inverse of replay: run a legacy chunk *function* against a stub that captures
+     the calls instead of building anything, and you get the op list that function is
+     equivalent to. That is how the hand-written regions were converted without anyone
+     retyping them, and it is how the editor takes over a chunk that is still a function.
+     -------------------------------------------------------------------------- */
+  A.record = function (cx, cy, M) {
+    var d = defs[cx + ',' + cy];
+    if (!d) return null;
+    if (d.ops) return d.ops.slice();
+    var ops = [];
+    var stub = { M: M || {}, rnd: function () { return 0.5; },
+                 cx: cx, cy: cy, ox: 0, oy: 0, spawns: {} };
+    /* Every builder verb becomes a recorder. Material arguments are turned back into
+       their names by identity, which is why MAT_ARG has to be right. */
+    Object.keys(Builder.prototype).forEach(function (verb) {
+      stub[verb] = function () {
+        var args = Array.prototype.slice.call(arguments);
+        var mi = MAT_ARG[verb];
+        if (mi !== undefined && args[mi] && typeof args[mi] === 'object') {
+          for (var name in stub.M) if (stub.M[name] === args[mi]) { args[mi] = name; break; }
+        }
+        while (args.length && args[args.length - 1] === undefined) args.pop();
+        ops.push([verb].concat(args));
+        return stub;
+      };
+    });
+    d.fn(stub);
+    return ops;
+  };
+
+  /* Replay an op list against a builder. Unknown verbs are skipped loudly rather than
+     thrown, so one bad op in the editor does not take the whole world down. */
+  A.replay = function (b, ops) {
+    for (var i = 0; i < ops.length; i++) {
+      var op = ops[i];
+      if (!op || !op.length) continue;
+      var verb = op[0];
+      if (typeof b[verb] !== 'function') { console.warn('authored: unknown op "' + verb + '"'); continue; }
+      var args = argsOf(op);
+      var mi = MAT_ARG[verb];
+      if (mi !== undefined && typeof args[mi] === 'string') args[mi] = b.M[args[mi]];
+      try { b[verb].apply(b, args); }
+      catch (err) { console.warn('authored: op "' + verb + '" failed', err); }
+    }
   };
 
 })(window.PROTO = window.PROTO || {});

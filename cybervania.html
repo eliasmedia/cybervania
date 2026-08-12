@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- The ?dev cache-buster below applies to the module files, but the page itself is
+     cached per URL — so loading ?dev&validate after editing the loader served a stale
+     shell with a module missing. This stops that happening again. -->
+<meta http-equiv="Cache-Control" content="no-store">
 <title>CYBERVANIA</title>
 <style>
   html,body{margin:0;padding:0;background:#04050a;overflow:hidden;height:100%;
@@ -55,7 +59,7 @@ window.addEventListener('error', function (e) {
   var FILES = [
     'proto/textures.js', 'proto/lights.js', 'proto/fx.js', 'proto/kit.js', 'proto/authored.js',
     'proto/enemies.js', 'proto/game.js', 'proto/regions/undercity.js',
-    'proto/world.js', 'proto/player.js', 'proto/postfx.js', 'proto/validate.js',
+    'proto/world.js', 'proto/player.js', 'proto/postfx.js', 'proto/validate.js', 'proto/editor.js',
     'proto/main.js'
   ];
   var i = 0;

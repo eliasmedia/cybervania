@@ -29,6 +29,10 @@ stolen by a conversation.
 **Toggles:** `P` pixelation · `O` palette snap · `B` bloom · `L` scanlines · `R` internal
 resolution. Press `P` to see the raw 3D underneath the treatment.
 
+**Editor:** `F2`, or open with `?edit`. See "Editing the world" below.
+
+Enemies you kill stay dead until you die. Dying is the only thing that puts them back.
+
 **Checks:** add `?validate` to the URL to run the authored-geometry checks at boot, and
 `?dev` to bypass the browser cache while editing. Three checks run: headroom/pocket
 detection, encounter-bypass detection (can a room be crossed without entering an enemy's
@@ -51,11 +55,51 @@ street and the shadow it throws moves with it.
 
 ### How the world works
 
-One shared coordinate space, divided into 24×24-unit chunks. A macro-map in
-`proto/world.js` authors the whole world at one character per chunk. Chunks near the
-player are built on demand and disposed behind them — roughly 35 resident at a time.
-Neighbouring chunks share a floor-height convention at the seam, so there is no boundary
-to see.
+One shared coordinate space, divided into 24×24-unit chunks. Chunks near the player are
+built on demand and disposed behind them. Neighbouring chunks share a floor-height
+convention at the seam, so there is no boundary to see.
+
+**Every chunk is hand-authored — there is no procedural generation.** There was, and it
+was cut: walking east ran out of designed world and dropped you into generated corridors
+that went on forever and meant nothing. A chunk with no definition is empty, and the
+world sizes itself from what has been authored.
+
+## Editing the world
+
+Press `F2` in game, or open `cybervania.html?edit`. The editor runs inside the real
+renderer with the real lighting, on the same data the game plays.
+
+| | |
+|---|---|
+| drag background | pan · **wheel** zooms |
+| pick a tool, drag | draw a floor, ledge, wall, ceiling, trigger… |
+| pick a tool, click | place a lamp, enemy, prop, spawn |
+| click a shape | select it · **arrows** nudge (hold shift for whole units) · **del** removes |
+| `+ new here` | create a chunk where the camera is |
+| `validate` | headroom, skippable fights, unreachable rooms |
+| `download region.js` | writes a region file to drop into `proto/regions/` |
+| `F2` | play from the room you are editing |
+
+Everything snaps to 0.5 units. The current room follows the camera. Every op carries a
+note — *what is this for?* — which survives the export round trip, because
+`REDESIGN.md §5a` requires every ledge to have an answer.
+
+A room is a list of ops rather than code:
+
+```js
+A.chunk(7, 7, {
+  name: 'THE CISTERN',
+  note: 'The first real space, and the first fight. NO LEDGES — the room is a basin…',
+  ops: [
+    ['floor', 0, 8, 4.5, '# the shelf you walk in on, and look from'],
+    ['floor', 8, 20, 0,  '# the basin — the fight happens down here'],
+    ['enemy', 'crawler', 17, 0.5, { facing: -1 }]
+  ]
+});
+```
+
+Legacy chunks written as functions still run; they just cannot be edited visually.
+`PROTO.Authored.record(cx, cy, PROTO.World.mats)` converts one into ops.
 
 ### Performance
 
@@ -82,13 +126,14 @@ proto/
   textures.js          procedural Canvas2D surface textures
   lights.js            fixed-size light pool (see REDESIGN.md section 9)
   fx.js                pooled impact sparks
-  authored.js          hand-authored chunk builder
-  regions/undercity.js the opening, hand-built
+  authored.js          chunk ops: registry, builder vocabulary, replay and record
+  regions/undercity.js the opening, as op lists
+  editor.js            the in-game level editor (F2 / ?edit)
   enemies.js           Crawler and Sentinel Eye
   game.js              health, triggers, dialogue, HUD
   validate.js          authored-geometry checks
   kit.js               modular geometry kit + per-chunk resource tracking
-  world.js             macro-map, chunk builders, streaming
+  world.js             chunk grid and streaming (no generation — see above)
   player.js            character controller + R-17 geometry
   postfx.js            low-res target, bloom, dither, palette snap
   main.js              renderer, camera, atmosphere, loop, HUD
